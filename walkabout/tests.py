@@ -91,7 +91,7 @@ class TestTopologicalSorter(unittest.TestCase):
         sorter = self._makeOne()
         add = sorter.add
         add('auth', 'auth_factory', after='browserid')
-        add('dbt', 'dbt_factory') 
+        add('dbt', 'dbt_factory')
         add('retry', 'retry_factory', before='txnmgr', after='exceptionview')
         add('browserid', 'browserid_factory')
         add('txnmgr', 'txnmgr_factory', after='exceptionview')
@@ -115,7 +115,7 @@ class TestTopologicalSorter(unittest.TestCase):
         add('retry', 'retry_factory', before='txnmgr', after='exceptionview')
         add('browserid', 'browserid_factory')
         add('txnmgr', 'txnmgr_factory', after='exceptionview')
-        add('dbt', 'dbt_factory') 
+        add('dbt', 'dbt_factory')
         self.assertEqual(sorter.sorted(),
                          [
                              ('exceptionview', 'excview_factory'),
@@ -135,14 +135,14 @@ class TestTopologicalSorter(unittest.TestCase):
         add('retry', 'retry_factory', before='txnmgr', after='exceptionview')
         add('browserid', 'browserid_factory', after=FIRST)
         add('txnmgr', 'txnmgr_factory', after='exceptionview', before=LAST)
-        add('dbt', 'dbt_factory') 
+        add('dbt', 'dbt_factory')
         self.assertEqual(sorter.sorted(),
                          [
                              ('browserid', 'browserid_factory'),
                              ('auth', 'auth_factory'),
                              ('exceptionview', 'excview_factory'),
                              ('retry', 'retry_factory'),
-                             ('txnmgr', 'txnmgr_factory'), 
+                             ('txnmgr', 'txnmgr_factory'),
                              ('dbt', 'dbt_factory'),
                              ])
 
@@ -185,7 +185,7 @@ class TestTopologicalSorter(unittest.TestCase):
         add('retry', 'retry_factory', before=('txnmgr', LAST),
                                       after='exceptionview')
         add('browserid', 'browserid_factory')
-        add('dbt', 'dbt_factory') 
+        add('dbt', 'dbt_factory')
         self.assertEqual(sorter.sorted(),
                          [
                              ('exceptionview', 'excview_factory'),
@@ -350,11 +350,114 @@ class TestPredicateList(unittest.TestCase):
 
     def test_unknown_predictate(self):
         from . import SortingError
-        self.assertRaises(SortingError, 
+        self.assertRaises(SortingError,
                             self._callFUT,
                                 one='ONE',
                                 nonesuch='NONESUCH',
                                 )
+
+
+class PredicateDispatchTests(unittest.TestCase):
+
+    def _getTargetClass(self):
+        from . import PredicateDispatch
+        return PredicateDispatch
+
+    def _makeOne(self, name='name'):
+        return self._getTargetClass()(name)
+
+    def test_ctor_defaults(self):
+        mv = self._makeOne()
+        self.assertEqual(mv.candidates, [])
+
+    def test___discriminator__(self):
+        class Discriminating(object):
+            def __discriminator__(self, *args):
+                return 'Discriminating: %s' % ', '.join([str(x) for x in args])
+        mv = self._makeOne()
+        mv.add(Discriminating(), 100)
+        self.assertEqual(mv.__discriminator__('a', 'b'),
+                         'Discriminating: a, b')
+
+    def test_add_one(self):
+        mv = self._makeOne()
+        mv.add('view', 100)
+        self.assertEqual(mv.candidates, [(100, 'view', None)])
+
+    def test_add_multiple(self):
+        mv = self._makeOne()
+        mv.add('view', 100)
+        mv.add('view2', 99)
+        mv.add('view3', 98)
+        self.assertEqual(mv.candidates, [(98, 'view3', None),
+                                         (99, 'view2', None),
+                                         (100, 'view', None)])
+
+    def test_add_with_phash(self):
+        mv = self._makeOne()
+        mv.add('view', 100, phash='abc')
+        mv.add('view', 100, phash='abc')
+        mv.add('view', 100, phash='def')
+        mv.add('view', 100, phash='abc')
+        self.assertEqual(mv.candidates, [(100, 'view', 'abc'),
+                                         (100, 'view', 'def')])
+
+    def test_add_with_phash_replacing(self):
+        mv = self._makeOne()
+        mv.add('view1', 100, phash='abc')
+        mv.add('view2', 100, phash='abc')
+        self.assertEqual(mv.candidates, [(100, 'view2', 'abc')])
+
+    def test_multiple_with_functions_as_views(self):
+        # this failed on py3 at one point, because functions aren't orderable
+        # and we were sorting the views via a plain sort() rather than
+        # sort(key=itemgetter(0)).
+        def view1(request): pass
+        def view2(request): pass
+        mv = self._makeOne()
+        mv.add(view1, 100, None)
+        self.assertEqual(mv.candidates,
+                        [(100, view1, None)])
+        mv.add(view2, 100, None)
+        self.assertEqual(mv.candidates,
+                        [(100, view1, None),
+                         (100, view2, None)])
+
+    def test_match_wo___predicated__(self):
+        candidate = object()
+        mv = self._makeOne()
+        mv.add(candidate, 100)
+        self.assertTrue(mv.match('a', 'b') is candidate)
+
+    def test_match_w___predicated___miss(self):
+        from . import PredicateMismatch
+        class Predicated(object):
+            def __init__(self, should_match):
+                self.should_match = should_match
+            def __predicated__(self, *args):
+                self._called_with = args
+                return self.should_match
+        candidate = Predicated(False)
+        mv = self._makeOne()
+        mv.add(candidate, 100)
+        self.assertRaises(PredicateMismatch, mv.match, 'a', 'b')
+        self.assertEqual(candidate._called_with, ('a', 'b'))
+
+    def test_match_w___predicated___hit(self):
+        class Predicated(object):
+            def __init__(self, should_match):
+                self.should_match = should_match
+            def __predicated__(self, *args):
+                self._called_with = args
+                return self.should_match
+        candidate1 = Predicated(False)
+        candidate2 = Predicated(True)
+        mv = self._makeOne()
+        mv.add(candidate1, 100)
+        mv.add(candidate2, 100)
+        self.assertTrue(mv.match('a', 'b') is candidate2)
+        self.assertEqual(candidate1._called_with, ('a', 'b'))
+        self.assertEqual(candidate2._called_with, ('a', 'b'))
 
 
 class DummyPredicate(object):

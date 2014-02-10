@@ -1,27 +1,17 @@
 from hashlib import md5
+import operator
 import sys
-import types
 
 PY3 = sys.version_info[0] == 3
 
 if PY3: # pragma: no cover
-    string_types = str,
-    integer_types = int,
-    class_types = type,
     text_type = str
-    binary_type = bytes
-    long = int
     def is_nonstr_iter(v):
         if isinstance(v, str):
             return False
         return hasattr(v, '__iter__')
 else: # pragma no cover
-    string_types = basestring,
-    integer_types = (int, long)
-    class_types = (type, types.ClassType)
     text_type = unicode
-    binary_type = str
-    long = long
     def is_nonstr_iter(v):
         return hasattr(v, '__iter__')
 
@@ -47,18 +37,24 @@ FIRST = Sentinel('FIRST')
 LAST = Sentinel('LAST')
 
 class SortingError(ValueError):
-    pass
+    """Unable to satisfy all dependencies during a topological sort.
+    """
 
-class CyclicDependencyError(ValueError):
-    pass
+class CyclicDependencyError(SortingError):
+    """Unable to break cyclic dependencies during a topological sort.
+    """
+
+class PredicateMismatch(LookupError):
+    """No candicate's predicates match.
+    """
 
 class predvalseq(tuple):
-    """ A subtype of tuple used to represent a sequence of predicate values """
-    pass
+    """ A subtype of tuple used to represent a sequence of predicate values
+    """
 
 class TopologicalSorter(object):
-    """ A utility class which can be used to perform topological sorts against
-    tuple-like data."""
+    """ Perform topological sorts against tuple-like data.
+    """
     def __init__(
         self,
         default_before=LAST,
@@ -272,17 +268,17 @@ class Notted(object):
 
 
 class PredicateList(object):
-
+    """Select from among a list of candidates using their predicates.
+    """
     def __init__(self):
         self.sorter = TopologicalSorter()
         self.last_added = None
 
     def add(self, name, factory, weighs_more_than=None, weighs_less_than=None):
-        # Predicates should be added to a predicate list in (presumed)
-        # computation expense order.
-        ## if weighs_more_than is None and weighs_less_than is None:
-        ##     weighs_more_than = self.last_added or FIRST
-        ##     weighs_less_than = LAST
+        """ Add a predicate factory to a predicate list
+
+        Predicates should be added in (presumed) computation expense order.
+        """
         self.last_added = name
         self.sorter.add(
             name,
@@ -292,17 +288,22 @@ class PredicateList(object):
             )
 
     def make(self, api, **kw):
-        # Given a configurator and a list of keywords, a predicate list is
-        # computed.  Elsewhere in the code, we evaluate predicates using a
-        # generator expression.  All predicates associated with a view or
-        # route must evaluate true for the view or route to "match" during a
-        # request.  The fastest predicate should be evaluated first, then the
-        # next fastest, and so on, as if one returns false, the remainder of
-        # the predicates won't need to be evaluated.
-        #
-        # While we compute predicates, we also compute a predicate hash (aka
-        # phash) that can be used by a caller to identify identical predicate
-        # lists.
+        """ Compute a predicate list given an api object and a list of keywords
+
+        Elsewhere in the code, we evaluate predicates using a generator
+        expression.
+
+        All predicates associated with a candidate must evaluate true for the
+        candidate to "match" during an election.
+
+        The fastest predicate should be evaluated first, then the
+        next fastest, and so on, as if one returns false, the remainder of
+        the predicates won't need to be evaluated.
+
+        While we compute predicates, we also compute a predicate hash (aka
+        phash) that can be used by a caller to identify identical predicate
+        lists.
+        """
         ordered = self.sorter.sorted()
         phash = md5()
         weights = []
@@ -358,3 +359,39 @@ class PredicateList(object):
             score = score | bit
         order = (MAX_ORDER - score) / (len(preds) + 1)
         return order, preds, phash.hexdigest()
+
+
+class PredicateDispatch(object):
+
+    def __init__(self, name):
+        self.name = name
+        self.candidates = []
+
+    def __discriminator__(self, *args):
+        # used by introspection systems like so:
+        # view = adapters.lookup(....)
+        # view.__discriminator__(context, request) -> view's discriminator
+        # so that superdynamic systems can feed the discriminator to
+        # the introspection system to get info about it
+        candidate = self.match(*args)
+        return candidate.__discriminator__(*args)
+
+    def add(self, candidate, order, phash=None):
+        if phash is not None:
+            for i, (s, v, h) in enumerate(list(self.candidates)):
+                if phash == h:
+                    self.candidates[i] = (order, candidate, phash)
+                    return
+        self.candidates.append((order, candidate, phash))
+        self.candidates.sort(key=operator.itemgetter(0))
+
+    def __iter__(self):
+        return iter(self.candidates)
+
+    def match(self, *args):
+        for order, candidate, phash in self:
+            if not hasattr(candidate, '__predicated__'):
+                return candidate
+            if candidate.__predicated__(*args):
+                return candidate
+        raise PredicateMismatch(self.name)
