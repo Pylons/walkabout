@@ -404,6 +404,8 @@ class PredicateDispatch(object):
 
 
 class IPredicateDomain(Interface):
+    """ Named utility interface for managing a set of distpatch candidates.
+    """
 
     target_interface = Attribute(
         "The target interface to which the candidate adapters conform.")
@@ -417,7 +419,13 @@ class IPredicateDomain(Interface):
         """
 
     def lookup(self, *args, **kw):
-        """ Find the "best" matching candidate for a given set of interfaces.
+        """ Find the "best" matching candidate for 'args'
+
+        Pass 'name' as a keyword argument.
+        """
+
+    def all(self, *args):
+        """ -> [(name, factory)] for factories dispatched against 'args'.
         """
 
 

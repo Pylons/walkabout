@@ -459,6 +459,18 @@ class PredicateDomainTests(unittest.TestCase):
     def _makeOne(self, target_interface, registry):
         return self._getTargetClass()(target_interface, registry)
 
+    def test_class_conforms_to_IPredicateDomain(self):
+        from zope.interface.verify import verifyClass
+        from . import IPredicateDomain
+        verifyClass(IPredicateDomain, self._getTargetClass())
+
+    def test_instance_conforms_to_IPredicateDomain(self):
+        from zope.interface import Interface
+        from zope.interface.verify import verifyObject
+        from . import IPredicateDomain
+        class IFoo(Interface): pass
+        verifyObject(IPredicateDomain, self._makeOne(IFoo, object()))
+
     def test_add_predicate(self):
         from zope.interface import Interface
         class IFoo(Interface): pass
@@ -524,6 +536,45 @@ class PredicateDomainTests(unittest.TestCase):
         registry = Components()
         domain = self._makeOne(IFoo, registry)
         self.assertRaises(PredicateMismatch, domain.lookup, object())
+
+    def test_lookup_with_name(self):
+        from zope.interface import Interface
+        from zope.interface import implementer
+        from zope.interface.registry import Components
+        from . import PredicateMismatch
+        class IFoo(Interface): pass
+        class IBar(Interface): pass
+        @implementer(IBar)
+        class Bar(object): pass
+        registry = Components()
+        candidate = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('zero', DummyPredicate)
+        domain.add_candidate(candidate, IBar, name='named', zero='ZERO')
+        self.assertRaises(PredicateMismatch, domain.lookup, Bar())
+        found = domain.lookup(Bar(), name='named')
+        self.assertTrue(found is candidate)
+
+    def test_all(self):
+        from zope.interface import Interface
+        from zope.interface import implementer
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        class IBar(Interface): pass
+        @implementer(IBar)
+        class Bar(object): pass
+        registry = Components()
+        candidate1 = object()
+        candidate2 = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('zero', DummyPredicate)
+        domain.add_predicate('one', PredicateOne)
+        domain.add_candidate(candidate1, IBar, name='name1', zero='ZERO')
+        domain.add_candidate(candidate2, IBar, name='name2')
+        domain.add_candidate(candidate2, IBar, name='name3', one='ONE')
+        self.assertEqual(sorted(domain.all(Bar())),
+                         [('name1', candidate1), ('name2', candidate2)])
+
 
 
 class DummyPredicate(object):
