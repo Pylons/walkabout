@@ -32,6 +32,7 @@ import os
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.doctest',
+    'repoze.sphinx.autointerface',
 ]
 
 # Add any paths that contain templates here, relative to this directory.

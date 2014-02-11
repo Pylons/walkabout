@@ -11,9 +11,5 @@
 
 .. autoclass:: not_
 
-.. autoclass:: PredicateDomain
-
-    .. automethod:: add_predicate
-    .. automethod:: add_candidate
-    .. automethod:: lookup
-    .. automethod:: all
+.. autointerface:: IPredicateDomain
+    :members:

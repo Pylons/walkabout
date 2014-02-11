@@ -414,17 +414,17 @@ class IPredicateDomain(Interface):
         """ Register a new predicate by name.
         """
 
-    def add_candidate(self, candidate, *args, **kw):
+    def add_candidate(candidate, *args, **kw):
         """ Register one adapter candidate for a given set of interfaces.
         """
 
-    def lookup(self, *args, **kw):
+    def lookup(*args, **kw):
         """ Find the "best" matching candidate for 'args'
 
         Pass 'name' as a keyword argument.
         """
 
-    def all(self, *args):
+    def all(*args):
         """ -> [(name, factory)] for factories dispatched against 'args'.
         """
 
