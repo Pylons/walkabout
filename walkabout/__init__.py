@@ -2,6 +2,9 @@ from hashlib import md5
 import operator
 import sys
 
+from zope.interface import providedBy
+from zope.interface.interfaces import IInterface
+
 PY3 = sys.version_info[0] == 3
 
 if PY3: # pragma: no cover
@@ -274,7 +277,7 @@ class PredicateList(object):
         self.sorter = TopologicalSorter()
         self.last_added = None
 
-    def add(self, name, factory, weighs_more_than=None, weighs_less_than=None):
+    def add(self, name, factory, before=None, after=None):
         """ Add a predicate factory to a predicate list
 
         Predicates should be added in (presumed) computation expense order.
@@ -283,8 +286,8 @@ class PredicateList(object):
         self.sorter.add(
             name,
             factory,
-            after=weighs_more_than,
-            before=weighs_less_than,
+            after=before,
+            before=after,
             )
 
     def make(self, api, **kw):
@@ -388,10 +391,55 @@ class PredicateDispatch(object):
     def __iter__(self):
         return iter(self.candidates)
 
-    def match(self, *args):
+    def match(self, by_phash, *args):
         for order, candidate, phash in self:
-            if not hasattr(candidate, '__predicated__'):
+            if phash is None:
                 return candidate
-            if candidate.__predicated__(*args):
+            if all((pred(*args) for pred in by_phash[phash])):
                 return candidate
         raise PredicateMismatch(self.name)
+
+
+
+class PredicateDomain(object):
+
+    def __init__(self, target_interface, registry):
+        self.target_interface = target_interface
+        self.registry = registry
+        self.predicates = PredicateList()
+        self.by_phash = {}
+
+    def add_predicate(self, name, factory, before=None, after=None):
+        return self.predicates.add(name, factory, before, after)
+
+    def _verifyArgs(self, *args, **kw):
+        if len(args) == 0:
+            raise TypeError('Must provide dispatch args as interfaces')
+        return kw.pop('name', '')
+
+    def add_candidate(self, candidate, *args, **kw):
+        name = self._verifyArgs(*args, **kw)
+        for arg in args:
+            if not IInterface.providedBy(arg):
+                raise ValueError('Must provide dispatch args as interfaces')
+        adapters = self.registry.adapters
+        dispatch = adapters.lookup(args, self.target_interface,
+                                                name=name, default=None)
+        if dispatch is None:
+            dispatch = PredicateDispatch(name)
+            adapters.register(args, self.target_interface, name, dispatch)
+        order, preds, phash = self.predicates.make(self.registry, **kw)
+        dispatch.add(candidate, order, phash)
+        self.by_phash[phash] = preds
+
+    def lookup(self, *args, **kw):
+        name = self._verifyArgs(*args, **kw)
+        if kw:
+            raise TypeError('Unknown keyword args: %s' % kw)
+        for_ = [providedBy(x) for x in args]
+        dispatch = self.registry.adapters.lookup(for_, self.target_interface,
+                                                 name=name)
+        if dispatch is None:
+            raise PredicateMismatch()
+
+        return dispatch.match(self.by_phash, *args)

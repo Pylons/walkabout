@@ -270,6 +270,7 @@ class TestTopologicalSorter(unittest.TestCase):
 
 
 class TestNotted(unittest.TestCase):
+
     def _makeOne(self, predicate):
         from . import Notted
         return Notted(predicate)
@@ -327,8 +328,8 @@ class TestPredicateList(unittest.TestCase):
         from . import PredicateList
         inst = PredicateList()
         inst.add('one', PredicateOne)
-        inst.add('two', PredicateTwo, weighs_less_than='one')
-        inst.add('three', PredicateThree, weighs_less_than='two')
+        inst.add('two', PredicateTwo, after='one')
+        inst.add('three', PredicateThree, after='two')
         order1, _, _ = inst.make(object(), one=True, two=False)
         order2, _, _ = inst.make(object(), one=True, three=True)
         self.assertTrue(order1 < order2)
@@ -427,37 +428,102 @@ class PredicateDispatchTests(unittest.TestCase):
         candidate = object()
         mv = self._makeOne()
         mv.add(candidate, 100)
-        self.assertTrue(mv.match('a', 'b') is candidate)
+        self.assertTrue(mv.match({}, 'a', 'b') is candidate)
 
-    def test_match_w___predicated___miss(self):
+    def test_match_w_by_phash_miss(self):
         from . import PredicateMismatch
-        class Predicated(object):
-            def __init__(self, should_match):
-                self.should_match = should_match
-            def __predicated__(self, *args):
-                self._called_with = args
-                return self.should_match
-        candidate = Predicated(False)
+        candidate = object()
         mv = self._makeOne()
-        mv.add(candidate, 100)
-        self.assertRaises(PredicateMismatch, mv.match, 'a', 'b')
-        self.assertEqual(candidate._called_with, ('a', 'b'))
+        mv.add(candidate, 100, 'abc')
+        by_phash = {'abc': [lambda *args: ''.join(args) == 'abc']}
+        self.assertRaises(PredicateMismatch, mv.match, by_phash, 'a', 'b')
 
-    def test_match_w___predicated___hit(self):
-        class Predicated(object):
-            def __init__(self, should_match):
-                self.should_match = should_match
-            def __predicated__(self, *args):
-                self._called_with = args
-                return self.should_match
-        candidate1 = Predicated(False)
-        candidate2 = Predicated(True)
+    def test_match_w_by_phash_hit(self):
+        candidate1 = object()
+        candidate2 = object()
+        by_phash = {'abc': [lambda *args: ''.join(args) == 'abc'],
+                    'def': [lambda *args: True],
+                   }
         mv = self._makeOne()
-        mv.add(candidate1, 100)
-        mv.add(candidate2, 100)
-        self.assertTrue(mv.match('a', 'b') is candidate2)
-        self.assertEqual(candidate1._called_with, ('a', 'b'))
-        self.assertEqual(candidate2._called_with, ('a', 'b'))
+        mv.add(candidate1, 100, 'abc')
+        mv.add(candidate2, 100, 'def')
+        self.assertTrue(mv.match(by_phash, 'a', 'b') is candidate2)
+
+
+class PredicateDomainTests(unittest.TestCase):
+
+    def _getTargetClass(self):
+        from . import PredicateDomain
+        return PredicateDomain
+
+    def _makeOne(self, target_interface, registry):
+        return self._getTargetClass()(target_interface, registry)
+
+    def test_add_predicate(self):
+        from zope.interface import Interface
+        class IFoo(Interface): pass
+        domain = self._makeOne(IFoo, object())
+        domain.add_predicate('one', PredicateOne)
+        domain.add_predicate('two', PredicateTwo, after='one')
+        domain.add_predicate('three', PredicateThree, after='two')
+        order1, _, _ = domain.predicates.make(object(), one=True, two=False)
+        order2, _, _ = domain.predicates.make(object(), one=True, three=True)
+        self.assertTrue(order1 < order2)
+
+    def test_add_candidate_zero_args(self):
+        from zope.interface import Interface
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        registry = Components()
+        candidate = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('one', PredicateOne)
+        self.assertRaises(TypeError, domain.add_candidate, candidate, one='ONE')
+
+    def test_add_candidate_invalid_arg(self):
+        from zope.interface import Interface
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        registry = Components()
+        candidate = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('one', PredicateOne)
+        self.assertRaises(ValueError,
+                          domain.add_candidate, candidate, None, one='ONE')
+
+    def test_add_candidate(self):
+        from zope.interface import Interface
+        from zope.interface import implementer
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        class IBar(Interface): pass
+        @implementer(IBar)
+        class Bar(object): pass
+        registry = Components()
+        candidate = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('zero', DummyPredicate)
+        domain.add_candidate(candidate, IBar, zero='ZERO')
+        found = domain.lookup(Bar())
+        self.assertTrue(found is candidate)
+
+    def test_lookup_extra_kw(self):
+        from zope.interface import Interface
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        registry = Components()
+        domain = self._makeOne(IFoo, registry)
+        self.assertRaises(TypeError, domain.lookup, object(),
+                            unknown='UNKNOWN')
+
+    def test_lookup_miss(self):
+        from zope.interface import Interface
+        from zope.interface.registry import Components
+        from . import PredicateMismatch
+        class IFoo(Interface): pass
+        registry = Components()
+        domain = self._makeOne(IFoo, registry)
+        self.assertRaises(PredicateMismatch, domain.lookup, object())
 
 
 class DummyPredicate(object):
