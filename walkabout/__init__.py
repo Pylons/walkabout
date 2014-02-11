@@ -2,8 +2,11 @@ from hashlib import md5
 import operator
 import sys
 
-from zope.interface import providedBy
+from zope.interface import Attribute
+from zope.interface import implementer
 from zope.interface.interfaces import IInterface
+from zope.interface.interfaces import Interface
+from zope.interface import providedBy
 
 PY3 = sys.version_info[0] == 3
 
@@ -400,7 +403,25 @@ class PredicateDispatch(object):
         raise PredicateMismatch(self.name)
 
 
+class IPredicateDomain(Interface):
 
+    target_interface = Attribute(
+        "The target interface to which the candidate adapters conform.")
+
+    def add_predicate(name, factory, before=None, after=None):
+        """ Register a new predicate by name.
+        """
+
+    def add_candidate(self, candidate, *args, **kw):
+        """ Register one adapter candidate for a given set of interfaces.
+        """
+
+    def lookup(self, *args, **kw):
+        """ Find the "best" matching candidate for a given set of interfaces.
+        """
+
+
+@implementer(IPredicateDomain)
 class PredicateDomain(object):
 
     def __init__(self, target_interface, registry):
@@ -412,13 +433,13 @@ class PredicateDomain(object):
     def add_predicate(self, name, factory, before=None, after=None):
         return self.predicates.add(name, factory, before, after)
 
-    def _verifyArgs(self, *args, **kw):
+    def _verifyArgs(self, args, kw):
         if len(args) == 0:
             raise TypeError('Must provide dispatch args as interfaces')
         return kw.pop('name', '')
 
     def add_candidate(self, candidate, *args, **kw):
-        name = self._verifyArgs(*args, **kw)
+        name = self._verifyArgs(args, kw)
         for arg in args:
             if not IInterface.providedBy(arg):
                 raise ValueError('Must provide dispatch args as interfaces')
@@ -433,7 +454,7 @@ class PredicateDomain(object):
         self.by_phash[phash] = preds
 
     def lookup(self, *args, **kw):
-        name = self._verifyArgs(*args, **kw)
+        name = self._verifyArgs(args, kw)
         if kw:
             raise TypeError('Unknown keyword args: %s' % kw)
         for_ = [providedBy(x) for x in args]
@@ -443,3 +464,13 @@ class PredicateDomain(object):
             raise PredicateMismatch()
 
         return dispatch.match(self.by_phash, *args)
+
+    def all(self, *args):
+        adapters = self.registry.adapters
+        for_ = [providedBy(x) for x in args]
+        for name, dispatch in adapters.lookupAll(for_, self.target_interface):
+            try:
+                factory = dispatch.match(self.by_phash, *args)
+            except PredicateMismatch:
+                continue
+            yield name, factory
