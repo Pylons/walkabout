@@ -9,15 +9,11 @@
 
 .. autoexception:: PredicateMismatch
 
-.. autoclass:: TopologicalSorter
-
-    .. automethod:: remove
-    .. automethod:: add
-    .. automethod:: sorted
-
 .. autoclass:: not_
 
-.. autoclass:: PredicateList
+.. autoclass:: PredicateDomain
 
-    .. automethod:: add
-    .. automethod:: make
+    .. automethod:: add_predicate
+    .. automethod:: add_candidate
+    .. automethod:: lookup
+    .. automethod:: all
