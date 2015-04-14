@@ -24,8 +24,8 @@ def read(fname):
         return fp.read()
 
 try:
-    README = read(os.path.join(here, 'README.txt'))
-    CHANGES = read(os.path.join(here, 'CHANGES.txt'))
+    README = read(os.path.join(here, 'README.rst'))
+    CHANGES = read(os.path.join(here, 'CHANGES.rst'))
 except:
     README = ''
     CHANGES = ''
@@ -42,16 +42,17 @@ setup(name='walkabout',
       classifiers=[
         "Intended Audience :: Developers",
         "Programming Language :: Python",
-        "Programming Language :: Python",
+        "Programming Language :: Python :: 2",
         "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.2",
         "Programming Language :: Python :: 3.3",
+        "Programming Language :: Python :: 3.4",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         ],
-      keywords='serialize deserialize validate schema validation',
+      keywords='interface adapter predicate',
       author="Agendaless Consulting",
       author_email="pylons-discuss@googlegroups.com",
       url="http://docs.pylonsproject.org/projects/walkabout/en/latest/",
