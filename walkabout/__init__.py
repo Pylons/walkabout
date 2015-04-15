@@ -1,4 +1,5 @@
 from hashlib import md5
+import inspect
 import operator
 import sys
 
@@ -7,6 +8,7 @@ from zope.interface import implementer
 from zope.interface.interfaces import IInterface
 from zope.interface.interfaces import Interface
 from zope.interface import providedBy
+from zope.interface import implementedBy
 
 PY3 = sys.version_info[0] == 3
 
@@ -448,9 +450,13 @@ class PredicateDomain(object):
 
     def add_candidate(self, candidate, *args, **kw):
         name = self._verifyArgs(args, kw)
-        for arg in args:
+        args = list(args)
+        for i, arg in enumerate(args):
             if not IInterface.providedBy(arg):
-                raise ValueError('Must provide dispatch args as interfaces')
+                if inspect.isclass(arg):
+                    args[i] = implementedBy(arg)
+                else:
+                    raise ValueError('Must provide dispatch args as interfaces')
         adapters = self.registry.adapters
         dispatch = adapters.lookup(args, self.target_interface,
                                                 name=name, default=None)

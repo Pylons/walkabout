@@ -503,6 +503,19 @@ class PredicateDomainTests(unittest.TestCase):
         self.assertRaises(ValueError,
                           domain.add_candidate, candidate, None, one='ONE')
 
+    def test_add_candidate_class_arg(self):
+        from zope.interface import Interface
+        from zope.interface.registry import Components
+        class IFoo(Interface): pass
+        class Bar(object): pass
+        registry = Components()
+        candidate = object()
+        domain = self._makeOne(IFoo, registry)
+        domain.add_predicate('zero', DummyPredicate)
+        domain.add_candidate(candidate, Bar, zero='ZERO')
+        found = domain.lookup(Bar())
+        self.assertTrue(found is candidate)
+
     def test_add_candidate(self):
         from zope.interface import Interface
         from zope.interface import implementer
