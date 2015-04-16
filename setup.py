@@ -36,7 +36,7 @@ testing_extras = ['nose', 'coverage']
 docs_extras = ['Sphinx']
 
 setup(name='walkabout',
-      version='0.9',
+      version='0.10',
       description=('Predicate-based adaptation'),
       long_description=README + '\n\n' +  CHANGES,
       classifiers=[
