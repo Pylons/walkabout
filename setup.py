@@ -32,7 +32,7 @@ except:
 
 requires = ['zope.interface']
 
-testing_extras = ['nose', 'coverage']
+testing_extras = ['pytest', 'pytest-cov']
 docs_extras = ['Sphinx']
 
 setup(name='walkabout',
@@ -42,13 +42,12 @@ setup(name='walkabout',
       classifiers=[
         "Intended Audience :: Developers",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2",
-        "Programming Language :: Python :: 2.6",
-        "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: 3.2",
-        "Programming Language :: Python :: 3.3",
-        "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.8",
+        "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
+        "Programming Language :: Python :: 3.11",
+        "Programming Language :: Python :: 3.12",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         ],
