@@ -10,23 +10,15 @@ from zope.interface.interfaces import Interface
 from zope.interface import providedBy
 from zope.interface import implementedBy
 
-PY3 = sys.version_info[0] == 3
-
-if PY3: # pragma: no cover
-    text_type = str
-    def is_nonstr_iter(v):
-        if isinstance(v, str):
-            return False
-        return hasattr(v, '__iter__')
-else: # pragma no cover
-    text_type = unicode
-    def is_nonstr_iter(v):
-        return hasattr(v, '__iter__')
+def is_nonstr_iter(v):
+    if isinstance(v, str):
+        return False
+    return hasattr(v, '__iter__')
 
 def bytes_(s, encoding='latin-1', errors='strict'):
-    """ If ``s`` is an instance of ``text_type``, return
-    ``s.encode(encoding, errors)``, otherwise return ``s``"""
-    if isinstance(s, text_type): # pragma: no cover
+    """Encode ``s`` if a string; otherwise return ``s``
+    """
+    if isinstance(s, str):
         return s.encode(encoding, errors)
     return s
 
