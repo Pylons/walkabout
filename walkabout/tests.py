@@ -1,5 +1,25 @@
 import unittest
 
+import pytest
+
+
+@pytest.mark.parametrize("nonstr", [object(), 1, 1.0, b"bytes"])
+def test_bytes__w_nonstr(nonstr):
+    from . import bytes_
+
+    assert bytes_(nonstr) is nonstr
+
+
+@pytest.mark.parametrize("isstr", [
+    "value",
+    "La Pe\xf1a",
+])
+def test_bytes__w_str(isstr):
+    from . import bytes_
+
+    value = "value"
+    assert bytes_(value) == value.encode("latin-1")
+
 
 class TestSentinel(unittest.TestCase):
     def test_repr(self):
